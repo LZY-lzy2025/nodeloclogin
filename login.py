@@ -23,54 +23,59 @@ def auto_login_and_checkin():
         page = context.new_page()
 
         try:
-            # 策略改变：直接访问首页，通过点击右上角的按钮唤出登录弹窗
             print("正在访问 NodeLoc 首页...")
             page.goto('https://www.nodeloc.com/', timeout=60000, wait_until='domcontentloaded')
             time.sleep(3)
 
-            # 查找并点击首页右上角的“登录”按钮（Discourse 默认类名为 .login-button）
             login_btn = page.locator('.login-button')
             if login_btn.count() > 0:
                 print("找到登录按钮，正在点击打开登录弹窗...")
                 login_btn.first.click()
-                time.sleep(2) # 等待弹窗动画出现
+                time.sleep(2) 
 
                 print("正在输入账号信息...")
-                # Discourse 弹窗里的标准输入框 ID 是 login-account-name
                 page.fill('#login-account-name', username)
                 page.fill('#login-account-password', password)
                 
                 print("正在提交登录请求...")
-                # 点击弹窗里的登录确认按钮
                 page.click('#login-button')
 
                 print("等待登录完成...")
-                time.sleep(6) # 给接口鉴权和页面刷新一点时间
+                time.sleep(6) 
             else:
                 print("⚠️ 未找到首页的登录按钮，可能是页面结构变更，或已处于登录状态。")
 
             # ================= 检查登录状态并签到 =================
             print("正在刷新页面检查状态...")
             page.goto('https://www.nodeloc.com/', timeout=60000, wait_until='domcontentloaded') 
-            time.sleep(4) 
+            time.sleep(5) # 多等一会，确保签到插件加载完毕
             
-            # Discourse 登录后右上角会显示用户头像菜单，通常带有 .current-user 类名
             if page.locator('.current-user').count() > 0 or page.locator('#current-user').count() > 0:
                 print("✅ 登录成功！")
                 
-                # 检查签到
-                # 这里去掉了 exact=True，为了兼容可能叫"每日签到"或"签到"的情况
+                # 检查是否已经签到
                 if page.locator("text=已签到").count() > 0:
                     print("🎉 检查结果: 今日已签到，无需重复操作。")
                 else:
-                    checkin_btn = page.locator("text=签到")
+                    print("🔍 正在寻找签到按钮...")
+                    # 核心修改：限定必须是按钮（button标签 或 带有btn类名），并且包含“签到”文本
+                    checkin_btn = page.locator('button, .btn, .d-button').filter(has_text="签到")
+                    
                     if checkin_btn.count() > 0:
                         checkin_btn.first.click()
-                        print("🚀 成功点击签到按钮！")
+                        print("🚀 成功点击签到按钮！等待服务器响应...")
+                        
+                        # 等待网络请求完成，确保 AJAX 请求发送成功
+                        page.wait_for_load_state('networkidle', timeout=10000)
                         time.sleep(3) 
-                        print("🎉 签到流程执行完毕。")
+                        
+                        # 【复查机制】：点击后再次检查页面上是否有“已签到”
+                        if page.locator("text=已签到").count() > 0:
+                            print("🎉 签到状态已成功变更为'已签到'，流程完美结束！")
+                        else:
+                            print("⚠️ 警告：虽然点击了，但状态没有变成'已签到'。可能是：1. 点击了错误的元素 2. 需要滑动验证码拦截了 3. 签到弹出了二次确认框。")
                     else:
-                        print("⚠️ 未找到包含[签到]字样的按钮，可能论坛今日未开启签到，或按钮在更深的菜单里。")
+                        print("⚠️ 找不到可点击的签到按钮。")
             else:
                 print("❌ 登录可能失败，遇到了验证码或账号密码错误。")
                 print(f"当前页面 URL: {page.url}")
