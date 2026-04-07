@@ -27,7 +27,6 @@ def auto_login_and_checkin():
             page.goto('https://www.nodeloc.com/', timeout=60000, wait_until='domcontentloaded')
             time.sleep(3)
 
-            # 点击右上角登录按钮
             login_btn = page.locator('.login-button')
             if login_btn.count() > 0:
                 print("找到登录按钮，正在点击打开登录弹窗...")
@@ -51,16 +50,13 @@ def auto_login_and_checkin():
             page.goto('https://www.nodeloc.com/', timeout=60000, wait_until='domcontentloaded') 
             time.sleep(5) 
             
-            # 判断是否登录成功
             if page.locator('.current-user').count() > 0 or page.locator('#current-user').count() > 0:
                 print("✅ 登录成功！")
                 
                 print("🔍 正在右上角寻找签到日历图标...")
-                # 【核心修改】：直接通过 title 属性（鼠标悬停提示词）来定位那个日历图标！
                 checkin_icon = page.locator('[title*="签到"]')
                 
                 if checkin_icon.count() > 0:
-                    # 获取当前的悬停提示文字
                     hover_text = checkin_icon.first.get_attribute('title')
                     print(f"找到图标！当前状态显示为: [{hover_text}]")
                     
@@ -69,22 +65,35 @@ def auto_login_and_checkin():
                     else:
                         print("👉 尝试点击签到图标...")
                         checkin_icon.first.click()
-                        time.sleep(3) # 等待签到请求发送和页面状态刷新
+                        time.sleep(3) 
                         
-                        # 【点击后的二次处理】
-                        # 有些论坛点完日历图标后，还会弹出一个弹窗让你再点一次"签到"按钮
+                        # 处理可能出现的二次确认弹窗
                         confirm_btn = page.locator('.d-modal button').filter(has_text="签到")
                         if confirm_btn.count() > 0 and confirm_btn.first.is_visible():
                             print("发现二次确认弹窗，正在点击确认...")
                             confirm_btn.first.click()
                             time.sleep(3)
                         
-                        # 再次获取悬停提示，检查是否变成了"已签到"
+                        # 获取点击后的提示文字
                         new_hover_text = checkin_icon.first.get_attribute('title')
-                        if new_hover_text and "已签到" in new_hover_text:
-                            print("🎉 签到成功！状态已完美更新。")
+                        print(f"🔄 点击操作后的图标状态变为: [{new_hover_text}]")
+                        
+                        # 很多时候前端提示不会立刻变化，所以我们强制刷新一次页面做最终确认
+                        print("正在刷新页面进行最终确认...")
+                        page.reload(timeout=60000, wait_until='domcontentloaded')
+                        time.sleep(4)
+                        
+                        final_icon = page.locator('[title*="签到"]')
+                        if final_icon.count() > 0:
+                            final_text = final_icon.first.get_attribute('title')
+                            print(f"🏁 刷新页面后，最终的图标状态为: [{final_text}]")
+                            
+                            if "已签到" in final_text:
+                                print("🎉 签到大成功！")
+                            else:
+                                print("⚠️ 签到可能未成功，请根据上述最终状态排查原因。")
                         else:
-                            print("✅ 已执行点击操作，请留意账号积分是否增加。")
+                            print("⚠️ 刷新后找不到了签到图标。")
                 else:
                     print("❌ 找不到右上角的签到图标，可能是页面还没加载完。")
             else:
