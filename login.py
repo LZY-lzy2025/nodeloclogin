@@ -27,77 +27,65 @@ def auto_login_and_checkin():
             page.goto('https://www.nodeloc.com/', timeout=60000, wait_until='domcontentloaded')
             time.sleep(3)
 
+            # ================= 登录流程 =================
             login_btn = page.locator('.login-button')
             if login_btn.count() > 0:
-                print("找到登录按钮，正在点击打开登录弹窗...")
+                print("找到登录按钮，正在打开登录弹窗...")
                 login_btn.first.click()
                 time.sleep(2) 
 
-                print("正在输入账号信息...")
                 page.fill('#login-account-name', username)
                 page.fill('#login-account-password', password)
-                
-                print("正在提交登录请求...")
                 page.click('#login-button')
-
-                print("等待登录完成...")
-                time.sleep(8) 
+                time.sleep(6) 
             else:
-                print("⚠️ 未找到首页的登录按钮，可能是已处于登录状态。")
+                print("⚠️ 未找到首页的登录按钮，尝试直接检查是否已登录。")
 
-            # ================= 检查登录状态并签到 =================
-            print("正在刷新页面确保状态更新...")
+            # 刷新页面确保拿到登录后的 Cookie
             page.goto('https://www.nodeloc.com/', timeout=60000, wait_until='domcontentloaded') 
-            time.sleep(5) 
+            time.sleep(4) 
             
+            # ================= 签到流程 =================
             if page.locator('.current-user').count() > 0 or page.locator('#current-user').count() > 0:
                 print("✅ 登录成功！")
                 
-                print("🔍 正在右上角寻找签到日历图标...")
-                checkin_icon = page.locator('[title*="签到"]')
+                print("🔍 正在使用精确 CSS 选择器寻找签到按钮...")
+                # 照搬 Selenium 脚本的终极选择器
+                checkin_selector = "li.header-dropdown-toggle.checkin-icon button.checkin-button"
+                checkin_btn = page.locator(checkin_selector)
                 
-                if checkin_icon.count() > 0:
-                    hover_text = checkin_icon.first.get_attribute('title')
-                    print(f"找到图标！当前状态显示为: [{hover_text}]")
+                if checkin_btn.count() > 0:
+                    btn = checkin_btn.first
                     
-                    if "已签到" in hover_text:
-                        print("🎉 今日已签到，无需重复操作。")
+                    # 照搬判定逻辑：检查是否有 checked-in 类名或 disabled 属性
+                    class_attr = btn.get_attribute("class") or ""
+                    is_disabled = btn.is_disabled()
+                    
+                    if "checked-in" in class_attr or is_disabled:
+                        print("🎉 检查结果: 今日已签到，无需重复操作。")
                     else:
-                        print("👉 尝试点击签到图标...")
-                        checkin_icon.first.click()
-                        time.sleep(3) 
+                        print("👉 尝试执行签到...")
+                        # 模仿 Selenium 触发 Hover
+                        btn.hover()
+                        time.sleep(1)
                         
-                        # 处理可能出现的二次确认弹窗
-                        confirm_btn = page.locator('.d-modal button').filter(has_text="签到")
-                        if confirm_btn.count() > 0 and confirm_btn.first.is_visible():
-                            print("发现二次确认弹窗，正在点击确认...")
-                            confirm_btn.first.click()
-                            time.sleep(3)
+                        # 照搬最狠的点击方式：直接注入 JS 触发点击，无视一切前端拦截
+                        btn.evaluate("node => node.click()")
+                        print("🚀 JS 点击命令已发送，等待服务器响应...")
+                        time.sleep(4) 
                         
-                        # 获取点击后的提示文字
-                        new_hover_text = checkin_icon.first.get_attribute('title')
-                        print(f"🔄 点击操作后的图标状态变为: [{new_hover_text}]")
+                        # 再次获取状态，复查是否签到成功
+                        class_attr_after = btn.get_attribute("class") or ""
+                        is_disabled_after = btn.is_disabled()
                         
-                        # 很多时候前端提示不会立刻变化，所以我们强制刷新一次页面做最终确认
-                        print("正在刷新页面进行最终确认...")
-                        page.reload(timeout=60000, wait_until='domcontentloaded')
-                        time.sleep(4)
-                        
-                        final_icon = page.locator('[title*="签到"]')
-                        if final_icon.count() > 0:
-                            final_text = final_icon.first.get_attribute('title')
-                            print(f"🏁 刷新页面后，最终的图标状态为: [{final_text}]")
-                            
-                            if "已签到" in final_text:
-                                print("🎉 签到大成功！")
-                            else:
-                                print("⚠️ 签到可能未成功，请根据上述最终状态排查原因。")
+                        if "checked-in" in class_attr_after or is_disabled_after:
+                            print("🎉 签到大成功！(按钮状态已变为已签到)")
                         else:
-                            print("⚠️ 刷新后找不到了签到图标。")
+                            print("⚠️ 点击已执行，但按钮状态未变。请留意账号积分是否增加。")
                 else:
-                    print("❌ 找不到右上角的签到图标，可能是页面还没加载完。")
+                    print("❌ 找不到签到按钮，请检查论坛是否更换了前端主题或结构。")
             else:
-                print("❌ 登录失败，请检查账号密码或是否遇到了安全验证拦截。")
+                print("❌ 登录失败，请检查账号密码或验证码拦截。")
 
         except Exception as e:
             print(f"执行过程中出现错误: {e}")
